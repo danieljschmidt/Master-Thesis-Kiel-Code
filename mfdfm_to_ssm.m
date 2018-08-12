@@ -1,5 +1,5 @@
-function [muSSM, A, B, Sigma_eps, R_eps, Sigma_eta, R_eta, mu_xf1, Sigma_xf1] ...
-    = mfdfm_to_ssm(mu, lambda, phi, sigma2v, psi, sigma2w)
+function [A, B, Sigma_eps, R_eps, Sigma_eta, R_eta, mu_xf1, Sigma_xf1] ...
+    = mfdfm_to_ssm(phi, sigma2v, lambda, psi, sigma2w)
 %
 % returns the parameters of the state space representation 
 %
@@ -48,7 +48,6 @@ function [muSSM, A, B, Sigma_eps, R_eps, Sigma_eta, R_eta, mu_xf1, Sigma_xf1] ..
 [~,p] = size(phi); % 1 x p
 
 n  = length(lambda);
-muSSM = [3*mu(1); (1-sum(psi(2:end,:),2)).*mu(2:end)];
 
 A1   = [phi zeros(1,5-p); eye(4,4) zeros(4,1)];
 A2  = [psi(1,:) zeros(1,5-q); eye(4,4) zeros(4,1)];

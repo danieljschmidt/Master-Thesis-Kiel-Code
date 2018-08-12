@@ -1,13 +1,13 @@
-function [x_all, phi_all, mu_all, lambda_all, psi_all, sigma2w_all] = ...
+function [x_all, phi_all, lambda_all, psi_all, sigma2w_all] = ...
     gibbs_mfdfm(y, S, p, q, ...
-    phi0, mu0, lambda0, psi0, sigma2w0)
+    phi0, lambda0, psi0, sigma2w0)
 %
 % returns MCMC samples for a mixed-frequency dynamic factor model
 %
 % y1_t  = 1/3 y1_t* + 2/3 y1_{t-1}* + y1_{t-2}* + 2/3 y1_{t-3}* + ...
 %         1/3 y1_{t-4}*
-% y1_t* = mu_1 + lambda_1 f_t + u1_t
-% yi_t  = psi_i(1) mu_i + lambda_i psi_i(L) f_t + wi_t        for i=2:n
+% y1_t* = lambda_1 f_t + u1_t
+% yi_t  = lambda_i psi_i(L) f_t + wi_t        for i=2:n
 % u1_t  = psi_1 u1_{t-1} + ... + psi_q u1_{t-q} + w1_t
 % f_t   = phi_1 f_{t-1}  + ... + phi_p f_{t-q}  + v_t
 % wi_t ~ Normal(0, sigma2w_i), v_t ~ Normal(0, sigma2v)
@@ -23,7 +23,6 @@ function [x_all, phi_all, mu_all, lambda_all, psi_all, sigma2w_all] = ...
 % priors:
 %
 % p(lambda_i) \propto 1
-% p(mu_i)     \propto 1
 % p(phi)      \propto 1_{phi is stationary}
 % p(psi_i)    \propto 1_{psi_i is stationary}
 % p(sigma2w_i)\propto (sigma2w_i)^{-1/2}
@@ -36,7 +35,6 @@ function [x_all, phi_all, mu_all, lambda_all, psi_all, sigma2w_all] = ...
 % q :   1 x 1
 %
 % phi0    : 1 x p
-% mu0     : n x 1
 % lambda0 : n x 1
 % psi0    : n x q
 % sigma2w : n x 1
@@ -45,13 +43,9 @@ function [x_all, phi_all, mu_all, lambda_all, psi_all, sigma2w_all] = ...
 %
 % x_all       : S x T x 10
 % phi_all     : S x p
-% mu_all      : S x n
 % lambda_all  : S x n
 % psi_all     : S x n x q
 % sigma2w_all : S x n
-%
-% problems:
-% - if psi is close to a unit root, mu gets driven to large values
 %
 
 % TODO check that data is well-behaved
@@ -77,14 +71,12 @@ sigma2v = 1.;
 % initialize storage matrices
 x_all       = zeros(S,T,10);
 phi_all     = zeros(S,p);
-mu_all      = zeros(S,n);
 lambda_all  = zeros(S,n);
 psi_all     = zeros(S,n,q);
 sigma2w_all = zeros(S,n);
 
 % initialize parameters
 phi     = phi0;     % 1 x p
-mu      = mu0;      % n x 1
 lambda  = lambda0;  % n x 1
 psi     = psi0;     % n x q
 sigma2w = sigma2w0; % n x 1
@@ -102,12 +94,12 @@ for s=1:S
     
     % (Durbin and Koopman, 2002, p. 67, y*-method
 
-    [muSSM, A, B, Sigma_eps, R_eps, Sigma_eta, R_eta, ...
+    [A, B, Sigma_eps, R_eps, Sigma_eta, R_eta, ...
     mu_xf1, Sigma_xf1] = ...
-    mfdfm_to_ssm(mu, lambda, phi, sigma2v, psi, sigma2w);
+    mfdfm_to_ssm(phi, sigma2v, lambda, psi, sigma2w);
 
     [x_sim, y_transf_sim] = simulate_ssm(...
-    T, muSSM, A, B, Sigma_eps, R_eps, Sigma_eta, R_eta, ...
+    T, A, B, Sigma_eps, R_eps, Sigma_eta, R_eta, ...
     mu_xf1, Sigma_xf1);
     
     % TODO: replace Sigma_xf1 with eye(10) ??
@@ -117,8 +109,7 @@ for s=1:S
     y_star = y_transf - y_transf_sim;
 
     xs_star    = fast_state_smoothing(y_star, ...
-    zeros(n,1), A, B, Sigma_eps, R_eps, Sigma_eta, R_eta, mu_xf1, eye(10));
-    % muSSM = zeros(n,1) for y*-method!
+    A, B, Sigma_eps, R_eps, Sigma_eta, R_eta, mu_xf1, eye(10));
 
     x = xs_star + x_sim;
 
@@ -134,39 +125,36 @@ for s=1:S
     X_phi = x(2:end,2:p+1);
     y_phi = x(2:end,1);
     [mu_phi, invsigma2_phi] = ols(X_phi, y_phi, sigma2v);
-    phi   = normrnd_stationary(mu_phi, invsigma2_phi, maxtimes)';
+    phi   = normrnd_stationary(mu_phi, invsigma2_phi, maxtimes);
+    phi   = phi';
     % tranposing is important!
     
-    %  - - - - - - - - - draw mu, lambda, sigma2w for i=1 - - - - - - - - -
-        
+    %  - - - - - - - - - draw lambda and sigma2w for i=1 - - - - - - - - -
+    
     y_1           = y_transf(y1_obs,1);
-    X_1           = [3*ones(T_obs(1),1), x(y1_obs,1:5)*[1;2;3;2;1]/3];
+    X_1           = x(y1_obs,1:5)*[1;2;3;2;1]/3;
     covm          = covmatrix(psi(1,:), y1_obs-y1_obs(1));
     
-    invSigma_beta = 1/sigma2w(1)*X_1'*(covm\X_1);
-    mu_beta       = invSigma_beta\(1/sigma2w(1)*X_1'*(covm\y_1));
-    beta          = normrnd2(mu_beta, invSigma_beta);
-    mu(1)         = beta(1); 
-    lambda(1)     = beta(2);
+    invSigma_lambda = 1/sigma2w(1)*X_1'*(covm\X_1);
+    mu_lambda       = invSigma_lambda\(1/sigma2w(1)*X_1'*(covm\y_1));
+    lambda(1)       = normrnd2(mu_lambda, invSigma_lambda);
     
-    u_1        = y_1 - X_1*beta;
+    u_1        = y_1 - X_1*lambda(1);
     sigma2w(1) = 1/gamrnd(T_obs(1)/2, 2/(u_1'*(covm\u_1)));
 
-    % - - - - - - - - - draw mu, lambda, sigma2w for i=2:n- - - - - - - - - 
+    % - - - - - - - - - draw lambda and sigma2w for i=2:n- - - - - - - - - 
 
     for i=2:n
         
         T_i    = T_obs(i);
         psiL_i = [1 -psi(i,:)];
         y_i    = y_transf(1:T_i,i);
-        X_i    = [sum(psiL_i)*ones(T_i,1),x(1:T_i,1:q+1)*psiL_i'];
+        X_i    = x(1:T_i,1:q+1)*psiL_i';
         
-        [mu_beta, invSigma2_beta] = ols(X_i, y_i, sigma2w(i));
-        beta      = normrnd2(mu_beta, invSigma2_beta);
-        mu(i)     = beta(1); 
-        lambda(i) = beta(2);
+        [mu_lambda, invSigma2_lambda] = ols(X_i, y_i, sigma2w(i));
+        lambda(i)  = normrnd2(mu_lambda, invSigma2_lambda);
         
-        u_i        = y_i - X_i*beta;
+        u_i        = y_i - X_i*lambda(i);
         sigma2w(i) = 1/gamrnd(T_i/2, 2/(u_i'*u_i));
         
     end
@@ -175,8 +163,8 @@ for s=1:S
 
     for i=2:n
 
-        X_psi = lags(y(  1:T_obs(i)+q,i),q) - mu(i) - lambda(i)*x(1:T_obs(i),2:q+1);
-        y_psi =      y(q+1:T_obs(i)+q,i)    - mu(i) - lambda(i)*x(1:T_obs(i),1);
+        X_psi = lags(y(  1:T_obs(i)+q,i),q) - lambda(i)*x(1:T_obs(i),2:q+1);
+        y_psi =      y(q+1:T_obs(i)+q,i)    - lambda(i)*x(1:T_obs(i),1);
         [mu_psi, invSigma2_psi] = ols(X_psi, y_psi, sigma2w(i));
         psi(i,:) = normrnd_stationary(mu_psi, invSigma2_psi, maxtimes);
 
@@ -189,7 +177,6 @@ for s=1:S
     
     x_all(s,:,:)    = x;
     phi_all(s,:)    = phi;
-    mu_all(s,:)     = mu;
     lambda_all(s,:) = lambda;
     psi_all(s,:,:)  = psi;
     sigma2w_all(s,:)= sigma2w;

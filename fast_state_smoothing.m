@@ -1,10 +1,10 @@
-function xs = fast_state_smoothing(y, muSSM, A, B, Sigma_eps, R_eps, ...
+function xs = fast_state_smoothing(y, A, B, Sigma_eps, R_eps, ...
     Sigma_eta, R_eta, mu_xf1, Sigma_xf1)
 %
 % returns the smoothed states calculated based on the data y for a known
 % states space model
 %
-% x_t = muSSM + A x_{t-1} + R_eps eps_t
+% x_t = A x_{t-1} + R_eps eps_t
 % y_t = B x_t + R_eta eta_t
 % x_1   ~ Normal(mu_xf1, Sigma_xf1)
 % eps_t ~ Normal(0, Sigma_eps)
@@ -16,7 +16,6 @@ function xs = fast_state_smoothing(y, muSSM, A, B, Sigma_eps, R_eps, ...
 % function input:
 %
 % y:           T x   n (is allowed to contain NaN values!)
-% muSSM:       n x   1
 % A:          10 x  10
 % B:           n x  10
 % Sigma_eps:   2 x   2
@@ -52,10 +51,9 @@ for t=1:T
     yt = yt(st);
 
     Bt  = B(st,:);
-    mut = muSSM(st);
     Wt  = W(st, st);
 
-    dyt = yt-mut-Bt*mu_xf;
+    dyt = yt-Bt*mu_xf;
     Ft  = Bt*Sigma_xf*Bt' + Wt;
     Mt  = Bt'/Ft;             % <- computationally most expensive step
     Kt  = A*Sigma_xf*Mt;

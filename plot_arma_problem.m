@@ -4,11 +4,11 @@ q = 1;
 T = 300;
 T1 = T + q;
 
-rng(111);
+rng(100);
 
 cutoff  = 1000;
-S       = 10000 + cutoff;
-rho_max = 500;
+S       = 20000 + cutoff;
+rho_max = 1000;
 
 mu_true      = randn(n,1);
 lambda_true  = randn(n,1);
@@ -48,8 +48,8 @@ disp(['inefficiency factor for sigma2w_1: ', num2str(if_sigma2w_1)])
 data_mcmc = [psi_all(cutoff+1:end,1), sigma2w_all(cutoff+1:end,1)];
 data_true = [psi_true(1) sigma2w_true(1)];
 
-csvwrite("julia-plots\\data_arma_problem_mcmc.csv", data_mcmc);
-csvwrite("julia-plots\\data_arma_problem_true.csv", data_true);
+csvwrite("data_plots\\data_arma_problem_mcmc.csv", data_mcmc);
+csvwrite("data_plots\\data_arma_problem_true.csv", data_true);
 
 % scatter plot of psi(1) vs sigma2w
 % nicer version in julia (hexbinplot)

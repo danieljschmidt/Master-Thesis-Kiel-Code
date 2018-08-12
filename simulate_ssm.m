@@ -1,16 +1,15 @@
-function [x, y] = simulate_ssm(T, muSSM, A, B, Sigma_eps, R_eps, ...
+function [x, y] = simulate_ssm(T, A, B, Sigma_eps, R_eps, ...
     Sigma_eta, R_eta, mu_xf1, Sigma_xf1)
 %
 % returns simulated states x and observations y of the state space model
 % 
-% x_t = muSSM + A x_{t-1} + R_eps eps_t
+% x_t = A x_{t-1} + R_eps eps_t
 % y_t = B x_t + R_eta eta_t
 % x_1   ~ Normal(mu_xf1, Sigma_xf1)
 % eps_t ~ Normal(0, Sigma_eps)
 % eta_t ~ Normal(0, Sigma_eta)
 %
 % function inputs:
-% muSSM:     n  x 1
 % A:         k  x k
 % B:         n  x k
 % R_eps:     k  x k1
@@ -43,6 +42,6 @@ for t=2:T
 end
 
 % sample y given x
-y = ones(T,1)*muSSM'+x*B'+eta*R_eta';
+y = x*B'+eta*R_eta';
 
 end
